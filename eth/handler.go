@@ -102,6 +102,7 @@ type ProtocolManager struct {
 // NewProtocolManager returns a new Ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
 // with the Ethereum network.
 func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCheckpoint, mode downloader.SyncMode, networkID uint64, mux *event.TypeMux, txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database, cacheLimit int, whitelist map[uint64]common.Hash) (*ProtocolManager, error) {
+  log.Info("NewProtocolManager!!!!!")
 	// Create the protocol manager with the base fields
 	manager := &ProtocolManager{
 		networkID:   networkID,
@@ -182,9 +183,13 @@ func NewProtocolManager(config *params.ChainConfig, checkpoint *params.TrustedCh
 			return 0, nil
 		}
 		n, err := manager.blockchain.InsertChain(blocks)
+    log.Info("Manager.acceptTxs!!")
 		if err == nil {
+      log.Info("Manager.acceptTxs!! set!")
 			atomic.StoreUint32(&manager.acceptTxs, 1) // Mark initial sync done on any fetcher import
-		}
+		} else {
+      log.Info("Manager.acceptTxs!! not set!")
+    }
 		return n, err
 	}
 	manager.fetcher = fetcher.New(blockchain.GetBlockByHash, validator, manager.BroadcastBlock, heighter, inserter, manager.removePeer)
@@ -360,12 +365,14 @@ func (pm *ProtocolManager) handle(p *peer) error {
 			p.Log().Debug("Ethereum message handling failed", "err", err)
 			return err
 		}
+  p.Log().Debug("Ethereum message handling not failed !!!!!!!!!!!!!!!!!!!!!!!!!")
 	}
 }
 
 // handleMsg is invoked whenever an inbound message is received from a remote
 // peer. The remote connection is torn down upon returning any error.
 func (pm *ProtocolManager) handleMsg(p *peer) error {
+	log.Debug("Handle Msg!", "peer", p)
 	// Read the next message from the remote peer, and ensure it's fully consumed
 	msg, err := p.rw.ReadMsg()
 	if err != nil {
@@ -717,22 +724,28 @@ func (pm *ProtocolManager) handleMsg(p *peer) error {
 		}
 
 	case msg.Code == TxMsg:
+	  log.Debug("switch!!", "TxMsg", msg.Code)
 		// Transactions arrived, make sure we have a valid and fresh chain to handle them
 		if atomic.LoadUint32(&pm.acceptTxs) == 0 {
+      log.Debug("Why???", "loadUint32",  atomic.LoadUint32(&pm.acceptTxs) )
 			break
 		}
+	  log.Debug("switch!!", "not break", msg.Code)
 		// Transactions can be processed, parse all of them and deliver to the pool
 		var txs []*types.Transaction
 		if err := msg.Decode(&txs); err != nil {
 			return errResp(ErrDecode, "msg %v: %v", msg, err)
 		}
+	  log.Debug("switch!!", "not return1", msg.Code)
 		for i, tx := range txs {
 			// Validate and mark the remote transaction
 			if tx == nil {
 				return errResp(ErrDecode, "transaction %d is nil", i)
 			}
 			p.MarkTransaction(tx.Hash())
+			log.Debug("switch!!", "Mark!!", tx.Hash())
 		}
+		log.Debug("switch!!", "Add Remotes!!", txs)
 		pm.txpool.AddRemotes(txs)
 
 	default:

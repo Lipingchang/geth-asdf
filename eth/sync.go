@@ -162,8 +162,11 @@ func (pm *ProtocolManager) syncer() {
 
 // synchronise tries to sync up our local block chain with a remote peer.
 func (pm *ProtocolManager) synchronise(peer *peer) {
+  log.Info("try to sync up with some one", "peer", peer)
 	// Short circuit if no peers are available
 	if peer == nil {
+    log.Info("peer is nil!!!!")
+    atomic.StoreUint32(&pm.acceptTxs, 1) // Mark initial sync done
 		return
 	}
 	// Make sure the peer's TD is higher than our own
@@ -172,6 +175,8 @@ func (pm *ProtocolManager) synchronise(peer *peer) {
 
 	pHead, pTd := peer.Head()
 	if pTd.Cmp(td) <= 0 {
+    log.Info("pTd.Cmp", "head", pHead,"pTd", pTd,"td",td, "result", pTd.Cmp(td))
+		// atomic.StoreUint32(&pm.acceptTxs, 1)  // 就算不需要同步任何东西, 也要把接受其他peer的pending tx的开关打开
 		return
 	}
 	// Otherwise try to sync with the downloader
@@ -197,13 +202,18 @@ func (pm *ProtocolManager) synchronise(peer *peer) {
 	// If we've successfully finished a sync cycle and passed any required checkpoint,
 	// enable accepting transactions from the network.
 	head := pm.blockchain.CurrentBlock()
+  log.Info("!!CurrentBlock:", "head", head)
 	if head.NumberU64() >= pm.checkpointNumber {
 		// Checkpoint passed, sanity check the timestamp to have a fallback mechanism
 		// for non-checkpointed (number = 0) private networks.
 		if head.Time() >= uint64(time.Now().AddDate(0, -1, 0).Unix()) {
 			atomic.StoreUint32(&pm.acceptTxs, 1)
-		}
-	}
+		} else {
+      log.Info("!!not set pm.acceptTxs")
+    }
+	} else {
+    log.Info("!!head.NumberU64() < pm.checkpointNumber", "headNumberU64", head.NumberU64(), "pm.checkpointNumber", pm.checkpointNumber);
+  }
 	if head.NumberU64() > 0 {
 		// We've completed a sync cycle, notify all peers of new state. This path is
 		// essential in star-topology networks where a gateway node needs to notify
